@@ -1,0 +1,15 @@
+{
+  "version": 2,
+  "builds": [
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "api/market-data.js", "use": "@vercel/node" }
+  ],
+  "routes": [
+    { "src": "/api/market-data", "dest": "/api/market-data.js" },
+    { "src": "/(.*)", "dest": "/index.html" }
+  ],
+  "env": {
+    "ALPHA_VANTAGE_API_KEY": "@alpha_vantage_api_key",
+    "TIINGO_API_KEY": "@tiingo_api_key"
+  }
+}
