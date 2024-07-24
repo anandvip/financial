@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Market Analysis Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+    <h1>Financial Market Analysis Tool</h1>
+    <button id="fetchData">Fetch Market Data</button>
+
+    <div id="sp500">
+        <h2>S&P 500</h2>
+        <canvas id="sp500Chart"></canvas>
+        <div id="sp500Trend"></div>
+    </div>
+
+    <div id="bitcoin">
+        <h2>Bitcoin</h2>
+        <canvas id="bitcoinChart"></canvas>
+        <div id="bitcoinTrend"></div>
+    </div>
+
+    <div id="gold">
+        <h2>Gold</h2>
+        <canvas id="goldChart"></canvas>
+        <div id="goldTrend"></div>
+    </div>
+
+    <div id="eurusd">
+        <h2>EUR/USD</h2>
+        <canvas id="eurusdChart"></canvas>
+        <div id="eurusdTrend"></div>
+    </div>
+
+    <div id="strongestTrend"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
