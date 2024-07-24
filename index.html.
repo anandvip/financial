@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Financial Market Analysis Tool</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f4f4;
+        }
+        .container {
+            max-width: 1200px;
+            margin: auto;
+            background: white;
+            padding: 20px;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.1);
+        }
+        h1, h2, h3 {
+            color: #333;
+        }
+        #market-data {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: space-between;
+        }
+        .asset-card {
+            width: 48%;
+            margin-bottom: 20px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .chart-container {
+            height: 200px;
+            margin-top: 15px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 10px;
+        }
+        th, td {
+            text-align: left;
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        button {
+            background-color: #4CAF50;
+            border: none;
+            color: white;
+            padding: 10px 20px;
+            text-align: center;
+            text-decoration: none;
+            display: inline-block;
+            font-size: 16px;
+            margin: 4px 2px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        #analysis-container {
+            margin-top: 20px;
+            padding: 15px;
+            background-color: #f9f9f9;
+            border-radius: 5px;
+        }
+        .positive { color: green; }
+        .negative { color: red; }
+        .neutral { color: gray; }
+        #source-selector {
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Financial Market Analysis Tool</h1>
+        <div id="source-selector">
+            <h3>Select Data Source:</h3>
+            <button id="alpha-vantage">Alpha Vantage</button>
+            <button id="tiingo">Tiingo</button>
+            <button id="both">Both (Alpha Vantage primary, Tiingo backup)</button>
+        </div>
+        <div id="market-data"></div>
+        <div id="analysis-container"></div>
+    </div>
+
+    <script>
+        const alphaVantageKey = 'T9ES4PV6IVHV52BX';
+
+        const assets = [
+            { symbol: 'SPY', name: 'S&P 500', type: 'Stocks' },
+            { symbol: 'BTCUSD', name: 'Bitcoin', type: 'Cryptocurrencies' },
+            { symbol: 'GLD', name: 'Gold ETF', type: 'Commodities' },
+            { symbol: 'SLV', name: 'Silver ETF', type: 'Commodities' },
+            { symbol: 'USO', name: 'Crude Oil ETF', type: 'Commodities' },
+            { symbol: 'EURUSD', name: 'Euro/US Dollar', type: 'Forex' },
+            { symbol: 'AUDUSD', name: 'Australian Dollar/US Dollar', type: 'Forex' }
+        ];
+
+        let selectedSource = 'both';
+
+        async function fetchAlphaVantageData(asset) {
+            const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${asset.symbol}&apikey=${alphaVantageKey}`;
+            const response = await fetch(url);
+            const data = await response.json();
+
+            if (data['Time Series (Daily)']) {
+                const timeSeries = data['Time Series (Daily)'];
+                const dates = Object.keys(timeSeries).sort().reverse().slice(0, 30);
+                const prices = dates.map(date => parseFloat(timeSeries[date]['4. close']));
+
+                return {
+                    dates: dates,
+                    prices: prices,
+                    latestPrice: prices[0],
+                    previousPrice: prices[1],
+                    source: 'Alpha Vantage'
+                };
+            } else {
+                throw new Error('Alpha Vantage data not available');
+            }
+        }
+
+        async function fetchTiingoData(asset) {
+            const url = `http://localhost:3000/api/tiingo`;
+            try {
+                const response = await fetch(url, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    }
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const data = await response.json();
+
+                const assetData = data.find(item => item.ticker.toUpperCase() === asset.symbol);
+
+                if (assetData) {
+                    return {
+                        dates: [new Date(assetData.quoteTimestamp).toLocaleDateString()],
+                        prices: [assetData.midPrice],
+                        latestPrice: assetData.midPrice,
+                        previousPrice: assetData.midPrice, // No previous data available
+                        source: 'Tiingo'
+                    };
+                } else {
+                    throw new Error('Tiingo data not available for ' + asset.symbol);
+                }
+            } catch (error) {
+                console.error('Error fetching Tiingo data:', error);
+                throw error;
+            }
+        }
+
+        async function fetchData(asset) {
+            if (selectedSource === 'alpha-vantage') {
+                return await fetchAlphaVantageData(asset);
+            } else if (selectedSource === 'tiingo') {
+                return await fetchTiingoData(asset);
+            } else {
+                try {
+                    return await fetchAlphaVantageData(asset);
+                } catch (error) {
+                    console.error(`Alpha Vantage failed for ${asset.symbol}, trying Tiingo`);
+                    return await fetchTiingoData(asset);
+                }
+            }
+        }
+
+        async function fetchMarketData() {
+            const marketDataContainer = document.getElementById('market-data');
+            marketDataContainer.innerHTML = '<h2>Latest Market Data:</h2>';
+
+            const trends = [];
+
+            for (const asset of assets) {
+                try {
+                    const data = await fetchData(asset);
+
+                    const change = ((data.latestPrice - data.previousPrice) / data.previousPrice) * 100;
+                    const trend = change >= 0 ? 'UP' : 'DOWN';
+
+                    trends.push({ asset: asset.name, change: change });
+
+                    const assetElement = document.createElement('div');
+                    assetElement.className = 'asset-card';
+                    assetElement.innerHTML = `
+                        <h3>${asset.name} (${asset.symbol})</h3>
+                        <p>Source: ${data.source}</p>
+                        <table>
+                            <tr>
+                                <th>Latest Price</th>
+                                <th>Change</th>
+                                <th>Trend</th>
+                            </tr>
+                            <tr>
+                                <td>$${data.latestPrice.toFixed(2)}</td>
+                                <td>${change.toFixed(2)}%</td>
+                                <td>${trend}</td>
+                            </tr>
+                        </table>
+                        <div class="chart-container">
+                            <canvas id="${asset.symbol}-chart"></canvas>
+                        </div>
+                    `;
+                    marketDataContainer.appendChild(assetElement);
+
+                    new Chart(document.getElementById(`${asset.symbol}-chart`), {
+                        type: 'line',
+                        data: {
+                            labels: data.dates,
+                            datasets: [{
+                                label: asset.name,
+                                data: data.prices,
+                                borderColor: 'rgb(75, 192, 192)',
+                                tension: 0.1
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false
+                        }
+                    });
+
+                } catch (error) {
+                    console.error(`Error fetching data for ${asset.symbol}:`, error);
+                    const errorElement = document.createElement('div');
+                    errorElement.className = 'asset-card error';
+                    errorElement.innerHTML = `<p>Error fetching data for ${asset.name}. Please try again later.</p>`;
+                    marketDataContainer.appendChild(errorElement);
+                }
+            }
+
+            analyzeMarketTrends(trends);
+        }
+
+        function analyzeMarketTrends(trends) {
+            const analysisContainer = document.getElementById('analysis-container');
+            analysisContainer.innerHTML = '<h2>Market Analysis</h2>';
+
+            trends.forEach(trend => {
+                const trendClass = trend.change >= 0 ? 'positive' : 'negative';
+                analysisContainer.innerHTML += `
+                    <p>${trend.asset}: 
+                    <span class="${trendClass}">${trend.change >= 0 ? 'UP' : 'DOWN'} ${Math.abs(trend.change).toFixed(2)}%</span></p>
+                `;
+            });
+
+            if (trends.length > 0) {
+                const strongestTrend = trends.reduce((a, b) => Math.abs(a.change) > Math.abs(b.change) ? a : b);
+                const weakestTrend = trends.reduce((a, b) => Math.abs(a.change) < Math.abs(b.change) ? a : b);
+
+                const averageChange = trends.reduce((sum, trend) => sum + Math.abs(trend.change), 0) / trends.length;
+                const marketSentiment = averageChange > 1 ? 'volatile' : averageChange > 0.5 ? 'active' : 'calm';
+
+                analysisContainer.innerHTML += `
+                    <p><strong>Market Insight:</strong></p>
+                    <ul>
+                        <li>The ${strongestTrend.asset} is showing the strongest trend, 
+                        moving ${strongestTrend.change >= 0 ? 'up' : 'down'} by ${Math.abs(strongestTrend.change).toFixed(2)}%.</li>
+                        <li>The ${weakestTrend.asset} is showing the weakest trend, 
+                        moving ${weakestTrend.change >= 0 ? 'up' : 'down'} by ${Math.abs(weakestTrend.change).toFixed(2)}%.</li>
+                        <li>The overall market sentiment appears to be ${marketSentiment} with an average change of ${averageChange.toFixed(2)}%.</li>
+                    </ul>
+                `;
+            } else {
+                analysisContainer.innerHTML += `
+                    <p>Insufficient data to perform analysis. Please try fetching data again or selecting a different data source.</p>
+                `;
+            }
+
+            analysisContainer.innerHTML += `
+                <p><strong>Note:</strong> This analysis is based on simple algorithms and recent price movements. 
+                It should not be considered as financial advice. Always do thorough research and consult with a 
+                qualified financial advisor before making any investment decisions.</p>
+            `;
+        }
+
+        document.getElementById('alpha-vantage').addEventListener('click', () => {
+            selectedSource = 'alpha-vantage';
+            fetchMarketData();
+        });
+
+        document.getElementById('tiingo').addEventListener('click', () => {
+            selectedSource = 'tiingo';
+            fetchMarketData();
+        });
+
+        document.getElementById('both').addEventListener('click', () => {
+            selectedSource = 'both';
+            fetchMarketData();
+        });
+
+        // Initial fetch
+        fetchMarketData();
+    </script>
+</body>
+</html>
