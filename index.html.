@@ -95,8 +95,6 @@
     </div>
 
     <script>
-        const alphaVantageKey = 'T9ES4PV6IVHV52BX';
-
         const assets = [
             { symbol: 'SPY', name: 'S&P 500', type: 'Stocks' },
             { symbol: 'BTCUSD', name: 'Bitcoin', type: 'Cryptocurrencies' },
@@ -109,75 +107,24 @@
 
         let selectedSource = 'both';
 
-        async function fetchAlphaVantageData(asset) {
-            const url = `https://www.alphavantage.co/query?function=TIME_SERIES_DAILY&symbol=${asset.symbol}&apikey=${alphaVantageKey}`;
-            const response = await fetch(url);
-            const data = await response.json();
-
-            if (data['Time Series (Daily)']) {
-                const timeSeries = data['Time Series (Daily)'];
-                const dates = Object.keys(timeSeries).sort().reverse().slice(0, 30);
-                const prices = dates.map(date => parseFloat(timeSeries[date]['4. close']));
-
-                return {
-                    dates: dates,
-                    prices: prices,
-                    latestPrice: prices[0],
-                    previousPrice: prices[1],
-                    source: 'Alpha Vantage'
-                };
-            } else {
-                throw new Error('Alpha Vantage data not available');
-            }
-        }
-
-        async function fetchTiingoData(asset) {
-            const url = `/api/tiingo`;
+        async function fetchData(asset) {
+            const url = `/api/market-data?source=${selectedSource}&symbol=${asset.symbol}`;
             try {
-                const response = await fetch(url, {
-                    method: 'GET',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    }
-                });
-
+                const response = await fetch(url);
                 if (!response.ok) {
                     throw new Error(`HTTP error! status: ${response.status}`);
                 }
-
                 const data = await response.json();
-
-                const assetData = data.find(item => item.ticker.toUpperCase() === asset.symbol);
-
-                if (assetData) {
-                    return {
-                        dates: [new Date(assetData.quoteTimestamp).toLocaleDateString()],
-                        prices: [assetData.midPrice],
-                        latestPrice: assetData.midPrice,
-                        previousPrice: assetData.midPrice, // No previous data available
-                        source: 'Tiingo'
-                    };
-                } else {
-                    throw new Error('Tiingo data not available for ' + asset.symbol);
-                }
+                return {
+                    dates: data.dates,
+                    prices: data.prices,
+                    latestPrice: data.prices[0],
+                    previousPrice: data.prices[1],
+                    source: data.source
+                };
             } catch (error) {
-                console.error('Error fetching Tiingo data:', error);
+                console.error(`Error fetching data for ${asset.symbol}:`, error);
                 throw error;
-            }
-        }
-
-        async function fetchData(asset) {
-            if (selectedSource === 'alpha-vantage') {
-                return await fetchAlphaVantageData(asset);
-            } else if (selectedSource === 'tiingo') {
-                return await fetchTiingoData(asset);
-            } else {
-                try {
-                    return await fetchAlphaVantageData(asset);
-                } catch (error) {
-                    console.error(`Alpha Vantage failed for ${asset.symbol}, trying Tiingo`);
-                    return await fetchTiingoData(asset);
-                }
             }
         }
 
@@ -291,7 +238,7 @@
         }
 
         document.getElementById('alpha-vantage').addEventListener('click', () => {
-            selectedSource = 'alpha-vantage';
+            selectedSource = 'alphavantage';
             fetchMarketData();
         });
 
